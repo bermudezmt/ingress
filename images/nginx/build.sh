@@ -281,6 +281,10 @@ sh build.sh
 make
 make install
 
+# Get lua-nginx-internals-nginx-module source and deps
+cd "$BUILD_PATH"
+git clone https://github.com/Shopify/lua-nginx-internals-nginx-module.git
+
 # Download owasp modsecurity crs
 cd /etc/nginx/
 git clone -b v3.1/dev --single-branch https://github.com/SpiderLabs/owasp-modsecurity-crs
@@ -377,7 +381,8 @@ WITH_MODULES="--add-module=$BUILD_PATH/ngx_devel_kit-$NDK_VERSION \
   --add-dynamic-module=$BUILD_PATH/nginx-opentracing-$NGINX_OPENTRACING_VERSION/jaeger \
   --add-dynamic-module=$BUILD_PATH/nginx-opentracing-$NGINX_OPENTRACING_VERSION/zipkin \
   --add-dynamic-module=$BUILD_PATH/ModSecurity-nginx-$MODSECURITY_VERSION \
-  --add-module=$BUILD_PATH/ngx_brotli"
+  --add-module=$BUILD_PATH/ngx_brotli \
+  --add-module=$BUILD_PATH/lua-nginx-internals-nginx-module" \
 
 ./configure \
   --prefix=/usr/share/nginx \

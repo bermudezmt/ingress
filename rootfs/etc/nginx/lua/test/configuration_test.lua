@@ -1,33 +1,40 @@
 package.path = "./rootfs/etc/nginx/lua/?.lua;"
 
-local _ngx = {
-  shared = {
-      configuration_data = {
-        get = function(self, rsc) end,
-        set = function(self, a) end,
-      }
-  },
-  print = function(msg) return msg end,
-  log = function(stream, msg) end,
-  var = {},
-  HTTP_OK = 200,
-  HTTP_BAD_REQUEST = 400,
-  HTTP_CREATED = 201,
-  ERR = nil,
-  req = {
-      read_body = function() end,
-      get_body_data = function() end,
-      get_body_file = function() end,
-  }
-}
-_G.ngx = _ngx
+local function get_default_ngx_environment()
+    local _ngx = {
+        shared = {
+            configuration_data = {
+              get = function(self, rsc) end,
+              set = function(self, a) end,
+            }
+        },
+        print = function(msg) return msg end,
+        log = function(stream, msg) end,
+        var = {},
+        HTTP_OK = 200,
+        HTTP_BAD_REQUEST = 400,
+        HTTP_CREATED = 201,
+        ERR = nil,
+        req = {
+            read_body = function() end,
+            get_body_data = function() end,
+            get_body_file = function() end,
+        }
+    }
+    return _ngx
+end
+
+_G.ngx = get_default_ngx_environment()
 
 local configuration = require("configuration")
 
 describe("Configuration", function()
     after_each(function()
-        _G.ngx = _ngx
+        _G.ngx = get_default_ngx_environment()
+        package.loaded["configuration"] = nil
+        configuration = require("configuration")
     end)
+
     context("Request method is neither GET nor POST", function()
         it("should log 'Only POST and GET requests are allowed!'", function()
             ngx.var.request_method = "PUT"
@@ -74,6 +81,7 @@ describe("Configuration", function()
             ngx.var.request_method = "POST"
             ngx.var.request_uri = "/configuration/backends"
         end)
+        
         it("should call configuration_data:set('backends')", function()
             ngx.req.get_body_data = function() return {body_data = true} end
             local s = spy.on(ngx.shared.configuration_data, "set")
@@ -85,18 +93,19 @@ describe("Configuration", function()
             before_each(function()
                 ngx.req.get_body_data = function() return false end
             end)
+
             it("should return a status of 400", function()
                 ngx.req.get_body_file = function() return false end
                 _G.io.open = function(filename, extension) return false end
                 assert.has_no.errors(configuration.call)
                 assert.equal(ngx.status, ngx.HTTP_BAD_REQUEST)
             end)
+            
             it("should log 'dynamic-configuration: unable to read valid request body'", function()                
                 local s = spy.on(ngx, "log")
                 assert.has_no.errors(configuration.call)
                 assert.spy(s).was_called_with(ngx.ERR, "dynamic-configuration: unable to read valid request body")
             end)
-
         end)
 
         context("Failed to set the new backends to the configuration dictionary", function()
@@ -104,10 +113,12 @@ describe("Configuration", function()
                 ngx.req.get_body_data = function() return true end
                 ngx.shared.configuration_data.set = function(key, value) return false, "" end
             end)
+
             it("should return a status of 400", function()
                 assert.has_no.errors(configuration.call)
                 assert.equal(ngx.status, ngx.HTTP_BAD_REQUEST)
             end)
+
             it("should log 'dynamic-configuration: error updating configuration:'", function()
                 local s = spy.on(ngx, "log")
                 assert.has_no.errors(configuration.call)
@@ -124,7 +135,5 @@ describe("Configuration", function()
             end)
         end)
     end)
-
-
 end)
 

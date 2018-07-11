@@ -67,7 +67,8 @@ describe("Sticky", function()
 
     describe("balance()", function()
         setup(function()
-            util.sha1_digest = function(msg) return msg, false end
+            util.sha1_digest = function(msg) return string.reverse(msg), false end
+            util.md5_digest = function(msg) return string.reverse(msg), false end
         end)
 
         teardown(function()
@@ -85,8 +86,8 @@ describe("Sticky", function()
             resty_chash.new = function(self, nodes)
                 return {
                     find = function(self, key)
-                        -- cookie's value is the unhashed endpoint since we stubbed the hash function
-                        return key
+                        -- cookie's value is the hashed endpoint since we stubbed the hash function
+                        return string.reverse(key)
                     end,
                     next = function(self, index)
                         return test_backend_endpoint
@@ -107,6 +108,8 @@ describe("Sticky", function()
                 end
                 local sticky_balancer_instance = sticky:new(test_backend)
                 local ip, port = sticky_balancer_instance:balance()
+                assert.truthy(ip)
+                assert.truthy(port)
                 assert.equal(ip .. ":" .. port, test_backend_endpoint)
             end)
 
@@ -117,13 +120,13 @@ describe("Sticky", function()
                     local cookie_instance = {
                         set = function(self, payload)
                             assert.equal(payload.key, test_backend.sessionAffinityConfig.cookieSessionAffinity.name)
-                            assert.equal(payload.value, test_backend_endpoint)
+                            assert.equal(payload.value, string.reverse(test_backend_endpoint))
                             assert.equal(payload.path, "/")
                             assert.equal(payload.domain, nil)
                             assert.equal(payload.httponly, true)
                             return true, nil 
                         end,
-                        get = function(k) end,
+                        get = function(k) return false end,
                     }
                     s = spy.on(cookie_instance, "set")
                     return cookie_instance, false
@@ -163,12 +166,14 @@ describe("Sticky", function()
                 local s = {}
                 cookie.new = function(self) 
                     local return_obj = {
-                        get = function(k) return test_backend_endpoint end,
+                        get = function(k) return string.reverse(test_backend_endpoint) end,
                     }
                     return return_obj, false
                 end
                 local sticky_balancer_instance = sticky:new(test_backend)
                 local ip, port = sticky_balancer_instance:balance()
+                assert.truthy(ip)
+                assert.truthy(port)
                 assert.equal(ip .. ":" .. port, test_backend_endpoint)
             end)
         end)

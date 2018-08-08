@@ -1,5 +1,3 @@
-package.path = "./rootfs/etc/nginx/lua/?.lua;"
-
 local function get_default_ngx_environment()
     local _ngx = {
         shared = {

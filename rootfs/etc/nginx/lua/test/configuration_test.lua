@@ -1,34 +1,28 @@
-local function get_default_ngx_environment()
+local configuration = require("configuration")
+local unmocked_ngx = _G.ngx
+
+function get_mocked_ngx_env()
     local _ngx = {
-        shared = {
-            configuration_data = {
-              get = function(self, rsc) end,
-              set = function(self, a) end,
-            }
-        },
+        status = 100,
         print = function(msg) return msg end,
-        log = function(stream, msg) end,
         var = {},
-        HTTP_OK = 200,
-        HTTP_BAD_REQUEST = 400,
-        HTTP_CREATED = 201,
-        ERR = nil,
         req = {
             read_body = function() end,
             get_body_data = function() end,
             get_body_file = function() end,
         }
     }
+    setmetatable(_ngx, {__index = _G.ngx})
     return _ngx
 end
 
-_G.ngx = get_default_ngx_environment()
-
-local configuration = require("configuration")
-
 describe("Configuration", function()
+    before_each(function()
+        _G.ngx = get_mocked_ngx_env()
+    end)
+
     after_each(function()
-        _G.ngx = get_default_ngx_environment()
+        _G.ngx = unmocked_ngx
         package.loaded["configuration"] = nil
         configuration = require("configuration")
     end)

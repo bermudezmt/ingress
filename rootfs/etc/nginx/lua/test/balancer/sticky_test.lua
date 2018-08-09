@@ -1,5 +1,3 @@
-package.path = "./rootfs/etc/nginx/lua/?.lua;./rootfs/etc/nginx/lua/test/mocks/?.lua;" .. package.path
-
 local resty_chash = require("resty.chash")
 local sticky = require("balancer.sticky")
 local util = require("util")
@@ -163,7 +161,6 @@ describe("Sticky", function()
 
             it("should return the correct endpoint for the client", function()
                 local cookie = require("resty.cookie")
-                local s = {}
                 cookie.new = function(self) 
                     local return_obj = {
                         get = function(k) return string.reverse(test_backend_endpoint) end,

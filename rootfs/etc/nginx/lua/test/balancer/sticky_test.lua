@@ -1,20 +1,27 @@
 local sticky = require("balancer.sticky")
 local util = require("util")
 
-local _ngx = {
-    log = function(stream, msg) end,
-    var = {},
-}
+function get_mocked_ngx_env()
+    local _ngx = {
+        log = function(stream, msg) end,
+        var = {},
+    }
+    setmetatable(_ngx, {__index = _G.ngx})
+    return _ngx
+end
 
-_G.ngx = _ngx
+_G.ngx = get_mocked_ngx_env()
 
 local function get_test_backend()
     return {
         name = "access-router-production-web-80",
         endpoints = {
-        { address = "10.184.7.40", port = "8080", maxFails = 0, failTimeout = 0 },
+            { address = "10.184.7.40", port = "8080", maxFails = 0, failTimeout = 0 },
         },
-        sessionAffinityConfig = { name = "cookie", cookieSessionAffinity = { name = "test_name", hash = "sha1" } },
+        sessionAffinityConfig = {
+            name = "cookie",
+            cookieSessionAffinity = { name = "test_name", hash = "sha1" }
+        },
     }
 end
 

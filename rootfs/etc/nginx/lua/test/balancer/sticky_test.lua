@@ -1,4 +1,3 @@
-local resty_chash = require("resty.chash")
 local sticky = require("balancer.sticky")
 local util = require("util")
 
@@ -64,35 +63,11 @@ describe("Sticky", function()
     end)
 
     describe("balance()", function()
-        setup(function()
-            util.sha1_digest = function(msg) return string.reverse(msg), false end
-            util.md5_digest = function(msg) return string.reverse(msg), false end
-        end)
-
-        teardown(function()
-            package.loaded["util"] = nil
-            util = require("util")
-        end)
-        
         before_each(function()
-            package.loaded["resty.chash"] = nil
-            resty_chash = require("resty.chash")
 
             package.loaded["balancer.sticky"] = nil
             sticky = require("balancer.sticky")
 
-            resty_chash.new = function(self, nodes)
-                return {
-                    find = function(self, key)
-                        -- cookie's value is the hashed endpoint since we stubbed the hash function
-                        return string.reverse(key)
-                    end,
-                    next = function(self, index)
-                        return test_backend_endpoint
-                    end,
-                    npoints = 1
-                }
-            end
         end)
 
         context("when client doesn't have a cookie set", function()
@@ -114,11 +89,12 @@ describe("Sticky", function()
             it("should set a cookie on the client", function() 
                 local cookie = require("resty.cookie")
                 local s = {}
-                cookie.new = function(self) 
+                cookie.new = function(self)
+                    local test_backend_hash_fn = test_backend.sessionAffinityConfig.cookieSessionAffinity.hash
                     local cookie_instance = {
                         set = function(self, payload)
                             assert.equal(payload.key, test_backend.sessionAffinityConfig.cookieSessionAffinity.name)
-                            assert.equal(payload.value, string.reverse(test_backend_endpoint))
+                            assert.equal(payload.value, util[test_backend_hash_fn .. "_digest"](test_backend_endpoint))
                             assert.equal(payload.path, "/")
                             assert.equal(payload.domain, nil)
                             assert.equal(payload.httponly, true)

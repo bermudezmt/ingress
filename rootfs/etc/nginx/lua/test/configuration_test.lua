@@ -4,7 +4,6 @@ local unmocked_ngx = _G.ngx
 function get_mocked_ngx_env()
     local _ngx = {
         status = 100,
-        print = function(msg) return msg end,
         var = {},
         req = {
             read_body = function() end,

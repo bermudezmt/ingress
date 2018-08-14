@@ -35,7 +35,6 @@ function get_mocked_ngx_env()
             get_body_data = function() return cjson.encode(get_backends()) end,
             get_body_file = function() return false end,
         },
-        log = function(msg) end
     }
     setmetatable(_ngx, {__index = _G.ngx})
     return _ngx

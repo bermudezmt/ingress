@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
@@ -113,7 +114,7 @@ func NewSocketCollector(pod, namespace, class string) (*SocketCollector, error) 
 		"controller_class":     class,
 		"controller_pod":       pod,
 	}
-	filterNonASCIILabels(constLabels)
+	removeNonASCIICharsFromLabels(constLabels)
 
 	sc := &SocketCollector{
 		listener: listener,
@@ -225,21 +226,21 @@ func (sc *SocketCollector) handleMessage(msg []byte) {
 		"ingress":   stats.Ingress,
 		"service":   stats.Service,
 	}
-	filterNonASCIILabels(requestLabels)
+	removeNonASCIICharsFromLabels(requestLabels)
 
 	collectorLabels := prometheus.Labels{
 		"namespace": stats.Namespace,
 		"ingress":   stats.Ingress,
 		"status":    stats.Status,
 	}
-	filterNonASCIILabels(collectorLabels)
+	removeNonASCIICharsFromLabels(collectorLabels)
 
 	latencyLabels := prometheus.Labels{
 		"namespace": stats.Namespace,
 		"ingress":   stats.Ingress,
 		"service":   stats.Service,
 	}
-	filterNonASCIILabels(latencyLabels)
+	removeNonASCIICharsFromLabels(latencyLabels)
 
 	requestsMetric, err := sc.requests.GetMetricWith(collectorLabels)
 	if err != nil {
@@ -434,17 +435,20 @@ func deleteConstants(labels prometheus.Labels) {
 	delete(labels, "controller_pod")
 }
 
-func containsNonASCIICharacter(s string) bool {
-	f := func(r rune) bool {
-		return r < ' ' || r > '~'
+func filterASCII(str string) string {
+	result := strings.Builder{}
+
+	for _, r := range str {
+		if r <= unicode.MaxASCII {
+			result.WriteRune(r)
+		}
 	}
-	return strings.IndexFunc(s, f) != -1
+
+	return result.String()
 }
 
-func filterNonASCIILabels(labels prometheus.Labels) {
+func removeNonASCIICharsFromLabels(labels prometheus.Labels) {
 	for k, v := range labels {
-		if containsNonASCIICharacter(v) {
-			labels[k] = ""
-		}
+		labels[k] = filterASCII(v)
 	}
 }

@@ -123,13 +123,15 @@ describe("Configuration", function()
         end)
 
         context("Failed to set the new backends to the configuration dictionary", function()
+            local resty_configuration_data_set = ngx.shared.configuration_data.set
             before_each(function()
                 ngx.shared.configuration_data.set = function(key, value) return false, "" end
             end)
 
-            after_each(function()
-                ngx.shared.configuration_data.set = function(key, value) return true, "" end
+            teardown(function()
+                ngx.shared.configuration_data.set = resty_configuration_data_set
             end)
+
 
             it("returns a status of 400", function()
                 assert.has_no.errors(configuration.call)

@@ -1,4 +1,5 @@
 local sticky = require("balancer.sticky")
+local cookie = require("resty.cookie")
 local util = require("util")
 
 function get_mocked_ngx_env()
@@ -71,15 +72,12 @@ describe("Sticky", function()
 
     describe("balance()", function()
         before_each(function()
-
             package.loaded["balancer.sticky"] = nil
             sticky = require("balancer.sticky")
-
         end)
 
         context("when client doesn't have a cookie set", function()
             it("should pick an endpoint for the client", function()
-                local cookie = require("resty.cookie")
                 cookie.new = function(self) 
                     return { 
                         get = function(self, n) return false end,
@@ -94,7 +92,6 @@ describe("Sticky", function()
             end)
 
             it("should set a cookie on the client", function() 
-                local cookie = require("resty.cookie")
                 local s = {}
                 cookie.new = function(self)
                     local test_backend_hash_fn = test_backend.sessionAffinityConfig.cookieSessionAffinity.hash
@@ -127,7 +124,6 @@ describe("Sticky", function()
 
         context("when client has a cookie set", function()
             it("should not set a cookie", function()
-                local cookie = require("resty.cookie")
                 local s = {}
                 cookie.new = function(self) 
                     local return_obj = {
@@ -143,7 +139,6 @@ describe("Sticky", function()
             end)
 
             it("should return the correct endpoint for the client", function()
-                local cookie = require("resty.cookie")
                 cookie.new = function(self) 
                     local return_obj = {
                         get = function(k) return string.reverse(test_backend_endpoint) end,

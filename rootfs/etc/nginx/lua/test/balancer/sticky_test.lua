@@ -4,14 +4,23 @@ local util = require("util")
 
 function get_mocked_ngx_env()
     local _ngx = {
-        log = function(stream, msg) end,
         var = {},
     }
     setmetatable(_ngx, {__index = _G.ngx})
     return _ngx
 end
 
+function get_mocked_cookie_new()
+    return function(self)
+        return {
+            get = function(self, n) return nil, "error" end,
+            set = function(self, n) return true, "" end
+        }
+    end
+end
+
 _G.ngx = get_mocked_ngx_env()
+cookie.new = get_mocked_cookie_new()
 
 local function get_test_backend()
     return {
@@ -71,19 +80,19 @@ describe("Sticky", function()
     end)
 
     describe("balance()", function()
+        local mocked_cookie_new = cookie.new
+
         before_each(function()
             package.loaded["balancer.sticky"] = nil
             sticky = require("balancer.sticky")
         end)
 
+        after_each(function()
+            cookie.new = mocked_cookie_new
+        end)
+
         context("when client doesn't have a cookie set", function()
             it("should pick an endpoint for the client", function()
-                cookie.new = function(self) 
-                    return { 
-                        get = function(self, n) return false end,
-                        set = function(self, n) return true end
-                    }
-                end
                 local sticky_balancer_instance = sticky:new(test_backend)
                 local ip, port = sticky_balancer_instance:balance()
                 assert.truthy(ip)
@@ -111,13 +120,6 @@ describe("Sticky", function()
                 end
                 local sticky_balancer_instance = sticky:new(get_test_backend())
                 assert.has_no.errors(function() sticky_balancer_instance:balance() end)
-                local cookie_set_payload = {
-                    key = test_backend.sessionAffinityConfig.cookieSessionAffinity.name,
-                    value = test_backend_endpoint,
-                    path = "/",
-                    domain = nil,
-                    httponly = true,
-                }
                 assert.spy(s).was_called()
             end)
         end)
@@ -139,12 +141,6 @@ describe("Sticky", function()
             end)
 
             it("should return the correct endpoint for the client", function()
-                cookie.new = function(self) 
-                    local return_obj = {
-                        get = function(k) return string.reverse(test_backend_endpoint) end,
-                    }
-                    return return_obj, false
-                end
                 local sticky_balancer_instance = sticky:new(test_backend)
                 local ip, port = sticky_balancer_instance:balance()
                 assert.truthy(ip)

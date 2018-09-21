@@ -18,6 +18,7 @@ package controller
 
 import (
 	"fmt"
+	"k8s.io/ingress-nginx/internal/ingress/annotations"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -393,6 +394,7 @@ func (n *NGINXController) getBackendServers(ingresses []*extensions.Ingress) ([]
 			if host == "" {
 				host = defServerName
 			}
+
 			server := servers[host]
 			if server == nil {
 				server = servers[defServerName]
@@ -543,6 +545,10 @@ func (n *NGINXController) getBackendServers(ingresses []*extensions.Ingress) ([]
 				}
 			}
 		}
+
+		if anns.Canary.Enabled {
+			mergeVirtualBackends(ing, anns, upstreams, servers)
+		}
 	}
 
 	aUpstreams := make([]*ingress.Backend, 0, len(upstreams))
@@ -620,6 +626,60 @@ func (n *NGINXController) getBackendServers(ingresses []*extensions.Ingress) ([]
 	return aUpstreams, aServers
 }
 
+func mergeVirtualBackends(ing *extensions.Ingress, anns *annotations.Ingress, upstreams map[string]*ingress.Backend,
+	servers map[string]*ingress.Server) {
+
+	for _, rule := range ing.Spec.Rules {
+		for _, path := range rule.HTTP.Paths {
+			upsName := fmt.Sprintf("%v-%v-%v",
+				ing.Namespace,
+				path.Backend.ServiceName,
+				path.Backend.ServicePort.String())
+
+			ups := upstreams[upsName]
+			// check if ok first?
+
+			if ups.Virtual {
+				// find matching paths
+				for _, server := range servers {
+					merged := false
+					for i, location := range server.Locations {
+						// check if paths match and we aren't look at another virtual backend or self (implicit)
+						if location.Path == path.Path && !upstreams[location.Backend].Virtual {
+							virtualBackend := ingress.VirtualBackend{
+								Name:   ups.Name,
+								Weight: anns.Canary.Weight,
+							}
+
+							// embed the virtual backend into the real backend
+							upstreams[location.Backend].VirtualBackends =
+								append(upstreams[location.Backend].VirtualBackends, virtualBackend)
+
+							// remove virtual location
+							server.Locations = append(server.Locations[:i], server.Locations[i+1:]...)
+
+							merged = true
+						}
+					}
+
+					// if no matching real backend then delete the virtual backend
+					if !merged {
+						// look back to the server locations and delete the location
+						for i, location := range server.Locations {
+							if upstreams[location.Backend].Name == ups.Name {
+								server.Locations = append(server.Locations[:i], server.Locations[i+1:]...)
+							}
+						}
+
+						// delete the backend after location is deleted
+						delete(upstreams, ups.Name)
+					}
+				}
+			}
+		}
+	}
+}
+
 // createUpstreams creates the NGINX upstreams (Endpoints) for each Service
 // referenced in Ingress rules.
 func (n *NGINXController) createUpstreams(data []*extensions.Ingress, du *ingress.Backend) map[string]*ingress.Backend {
@@ -666,6 +726,13 @@ func (n *NGINXController) createUpstreams(data []*extensions.Ingress, du *ingres
 				} else {
 					upstreams[defBackend].Endpoints = []ingress.Endpoint{endpoint}
 				}
+			}
+
+			// marks the upstream as virtual for association with real upstream
+			if anns.Canary.Enabled {
+				upstreams[defBackend].Virtual = true
+			} else {
+				upstreams[defBackend].Virtual = false
 			}
 
 			if len(upstreams[defBackend].Endpoints) == 0 {
@@ -723,6 +790,13 @@ func (n *NGINXController) createUpstreams(data []*extensions.Ingress, du *ingres
 					} else {
 						upstreams[name].Endpoints = []ingress.Endpoint{endpoint}
 					}
+				}
+
+				// marks the upstream as virtual for association with real upstream
+				if anns.Canary.Enabled {
+					upstreams[name].Virtual = true
+				} else {
+					upstreams[name].Virtual = false
 				}
 
 				if len(upstreams[name].Endpoints) == 0 {
@@ -971,7 +1045,13 @@ func (n *NGINXController) createServers(data []*extensions.Ingress,
 				host = defServerName
 			}
 			if _, ok := servers[host]; ok {
-				// server already configured
+				// server already configured. Append location.
+				servers[host].Locations = append(servers[host].Locations, &ingress.Location{
+					Path:         rootLocation,
+					IsDefBackend: true,
+					Proxy:        ngxProxy,
+					Service:      &apiv1.Service{},
+				})
 				continue
 			}
 

@@ -48,6 +48,7 @@ var (
 // Configuration holds the definition of all the parts required to describe all
 // ingresses reachable by the ingress controller (using a filter by namespace)
 type Configuration struct {
+
 	// Backends are a list of backends used by all the Ingress rules in the
 	// ingress controller. This list includes the default backend
 	Backends []*Backend `json:"backends,omitempty"`
@@ -96,6 +97,28 @@ type Backend struct {
 	UpstreamHashBy string `json:"upstream-hash-by,omitempty"`
 	// LB algorithm configuration per ingress
 	LoadBalancing string `json:"load-balance,omitempty"`
+	// Denotes if a backend is virtual and has no server
+	Virtual bool `json:"virtual"`
+	// Additional virtual backends associated with the same server and endpoints, but have a different service
+	// which will receive a weighted amount of traffic redirected to them.
+	// +optional
+	VirtualBackends []VirtualBackend `json:"virtual-backends,omitempty"`
+}
+
+// VirtualBackend describes a normal Backend that is not backed by a Server. Instead, The virtual backend
+// shares a server with a real Backend.
+// +k8s:deepcopy-gen=true
+type VirtualBackend struct {
+	// Name of the backend
+	Name string `json:"backend"`
+	// Weight (0-100) of traffic to redirect to the virtual backend.
+	// e.g. Weight 20 means 20% of traffic will be redirected to the virtual backend and 80% will remain
+	// with the real backend. 0 Weight will not send any traffic to the virtual backend
+	Weight int `json:"weight"`
+	// Header on which to redirect requests to the virtual backend
+	Header string `json:"header"`
+	// Cookie on which to redirect requests to the virtual backend
+	Cookie string `json:"cookie"`
 }
 
 // HashInclude defines if a field should be used or not to calculate the hash

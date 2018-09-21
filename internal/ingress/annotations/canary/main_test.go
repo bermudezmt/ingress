@@ -1,17 +1,17 @@
 /*
- Copyright 2018 The Kubernetes Authors.
+Copyright 2018 The Kubernetes Authors.
 
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-     http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 */
 
 package canary
@@ -19,13 +19,12 @@ package canary
 import (
 	api "k8s.io/api/core/v1"
 	extensions "k8s.io/api/extensions/v1beta1"
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/ingress-nginx/internal/ingress/annotations/parser"
 	"testing"
 
-	"k8s.io/ingress-nginx/internal/ingress/annotations/parser"
 	"k8s.io/ingress-nginx/internal/ingress/resolver"
-
 	"strconv"
 )
 
@@ -36,7 +35,7 @@ func buildIngress() *extensions.Ingress {
 	}
 
 	return &extensions.Ingress{
-		ObjectMeta: meta_v1.ObjectMeta{
+		ObjectMeta: metaV1.ObjectMeta{
 			Name:      "foo",
 			Namespace: api.NamespaceDefault,
 		},
@@ -74,17 +73,25 @@ func TestAnnotations(t *testing.T) {
 		title         string
 		canaryEnabled bool
 		canaryWeight  int
+		canaryHeader  string
+		canaryCookie  string
 		expErr        bool
 	}{
-		{"canary disabled and no weight", false, 0, false},
-		{"canary disabled and weight", false, 20, false},
-		{"canary enabled and weight", true, 20, false},
-		{"canary enabled and no weight", true, 0, false},
+		{"canary disabled and no weight", false, 0, "", "", false},
+		{"canary disabled and weight", false, 20, "", "", true},
+		{"canary disabled and header", false, 0, "X-Canary", "", true},
+		{"canary disabled and cookie", false, 0, "", "canary_enabled", true},
+		{"canary enabled and weight", true, 20, "", "", false},
+		{"canary enabled and no weight", true, 0, "", "", false},
+		{"canary enabled by header", true, 20, "X-Canary", "", false},
+		{"canary enabled by cookie", true, 20, "", "canary_enabled", false},
 	}
 
 	for _, test := range tests {
 		data[parser.GetAnnotationWithPrefix("canary")] = strconv.FormatBool(test.canaryEnabled)
 		data[parser.GetAnnotationWithPrefix("canary-weight")] = strconv.Itoa(test.canaryWeight)
+		data[parser.GetAnnotationWithPrefix("canary-by-header")] = test.canaryHeader
+		data[parser.GetAnnotationWithPrefix("canary-by-cookie")] = test.canaryCookie
 
 		i, err := NewParser(&resolver.Mock{}).Parse(ing)
 		if test.expErr {

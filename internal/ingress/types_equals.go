@@ -16,6 +16,8 @@ limitations under the License.
 
 package ingress
 
+import "github.com/golang/glog"
+
 // Equal tests for equality between two Configuration types
 func (c1 *Configuration) Equal(c2 *Configuration) bool {
 	if c1 == c2 {
@@ -25,6 +27,7 @@ func (c1 *Configuration) Equal(c2 *Configuration) bool {
 		return false
 	}
 
+	glog.Infof("length of backends: %v == %v", len(c1.Backends), len(c2.Backends))
 	if len(c1.Backends) != len(c2.Backends) {
 		return false
 	}

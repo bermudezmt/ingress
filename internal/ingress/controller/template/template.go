@@ -85,7 +85,7 @@ func (t *Template) Write(conf config.TemplateConfig) ([]byte, error) {
 	outCmdBuf := t.bp.Get()
 	defer t.bp.Put(outCmdBuf)
 
-	if glog.V(3) {
+	if glog.V(0) {
 		b, err := json.Marshal(conf)
 		if err != nil {
 			glog.Errorf("unexpected error: %v", err)

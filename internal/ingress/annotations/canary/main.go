@@ -44,30 +44,33 @@ func NewParser(r resolver.Resolver) parser.IngressAnnotation {
 // Parse parses the annotations contained in the ingress
 // rule used to indicate if the canary should be enabled and with what settings
 func (c canary) Parse(ing *extensions.Ingress) (interface{}, error) {
-	enabled, err := parser.GetBoolAnnotation("canary", ing)
+	config := &Config{}
+	var err error
+
+	config.Enabled, err = parser.GetBoolAnnotation("canary", ing)
 	if err != nil {
-		return nil, err
+		config.Enabled = false
 	}
 
-	weight, err := parser.GetIntAnnotation("canary-weight", ing)
+	config.Weight, err = parser.GetIntAnnotation("canary-weight", ing)
 	if err != nil {
-		return nil, err
+		config.Weight = 0
 	}
 
-	header, err := parser.GetStringAnnotation("canary-by-header", ing)
+	config.Header, err = parser.GetStringAnnotation("canary-by-header", ing)
 	if err != nil {
-		return nil, err
+		config.Header = ""
 	}
 
-	cookie, err := parser.GetStringAnnotation("canary-by-cookie", ing)
+	config.Cookie, err = parser.GetStringAnnotation("canary-by-cookie", ing)
 	if err != nil {
-		return nil, err
+		config.Cookie = ""
 	}
 
 	// return error if canary configured but disabled
-	if !enabled && (weight > 0 || len(header) > 0 || len(cookie) > 0) {
+	if !config.Enabled && (config.Weight > 0 || len(config.Header) > 0 || len(config.Cookie) > 0) {
 		return nil, errors.New("invalid canary configuration")
 	}
 
-	return &Config{enabled, weight, header, cookie}, nil
+	return config, nil
 }

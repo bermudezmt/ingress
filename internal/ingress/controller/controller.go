@@ -161,6 +161,34 @@ func (n *NGINXController) syncIngress(interface{}) error {
 		BackendConfigChecksum: n.store.GetBackendConfiguration().Checksum,
 	}
 
+	glog.Infof("CURRENT CONFIGBACKEND:")
+	for _, conf := range n.runningConfig.Backends {
+		glog.Infof("\t BACKEND_NAME: %v", conf.Name)
+	}
+
+	glog.Infof("CURRENT SERVERS:")
+	for _, s := range n.runningConfig.Servers {
+		glog.Infof("\t HOST: %v", s.Hostname)
+		for _, l := range s.Locations {
+			glog.Infof("\t \t %v", l.Backend)
+		}
+	}
+
+	glog.Info("\n")
+
+	glog.Infof("NEW CONFIG BACKEND:")
+	for _, conf := range upstreams {
+		glog.Infof("\t BACKEND_NAME: %v", conf.Name)
+	}
+
+	glog.Infof("SERVERS:")
+	for _, s := range servers {
+		glog.Infof("\t HOST: %v", s.Hostname)
+		for _, l := range s.Locations {
+			glog.Infof("\t \t %v", l.Backend)
+		}
+	}
+
 	if n.runningConfig.Equal(pcfg) {
 		glog.V(3).Infof("No configuration change detected, skipping backend reload.")
 		return nil
@@ -434,6 +462,11 @@ func (n *NGINXController) getBackendServers(ingresses []*extensions.Ingress) ([]
 
 				ups := upstreams[upsName]
 
+				// Virtual backends are not referenced to by any servers
+				if ups.Virtual {
+					continue
+				}
+
 				nginxPath := rootLocation
 				if path.Path != "" {
 					nginxPath = path.Path
@@ -547,6 +580,7 @@ func (n *NGINXController) getBackendServers(ingresses []*extensions.Ingress) ([]
 		}
 
 		if anns.Canary.Enabled {
+			glog.V(3).Info("Canary ingress %v detected. Finding eligible backends to merge into.", ing.Name)
 			mergeVirtualBackends(ing, anns, upstreams, servers)
 		}
 	}
@@ -643,35 +677,28 @@ func mergeVirtualBackends(ing *extensions.Ingress, anns *annotations.Ingress, up
 				// find matching paths
 				for _, server := range servers {
 					merged := false
-					for i, location := range server.Locations {
-						// check if paths match and we aren't look at another virtual backend or self (implicit)
+
+					for _, location := range server.Locations {
+						if location.Backend == defUpstreamName {
+							continue
+						}
+
 						if location.Path == path.Path && !upstreams[location.Backend].Virtual {
 							virtualBackend := ingress.VirtualBackend{
 								Name:   ups.Name,
 								Weight: anns.Canary.Weight,
+								Header: anns.Canary.Header,
+								Cookie: anns.Canary.Cookie,
 							}
 
-							// embed the virtual backend into the real backend
 							upstreams[location.Backend].VirtualBackends =
 								append(upstreams[location.Backend].VirtualBackends, virtualBackend)
-
-							// remove virtual location
-							server.Locations = append(server.Locations[:i], server.Locations[i+1:]...)
 
 							merged = true
 						}
 					}
 
-					// if no matching real backend then delete the virtual backend
 					if !merged {
-						// look back to the server locations and delete the location
-						for i, location := range server.Locations {
-							if upstreams[location.Backend].Name == ups.Name {
-								server.Locations = append(server.Locations[:i], server.Locations[i+1:]...)
-							}
-						}
-
-						// delete the backend after location is deleted
 						delete(upstreams, ups.Name)
 					}
 				}
@@ -1045,13 +1072,7 @@ func (n *NGINXController) createServers(data []*extensions.Ingress,
 				host = defServerName
 			}
 			if _, ok := servers[host]; ok {
-				// server already configured. Append location.
-				servers[host].Locations = append(servers[host].Locations, &ingress.Location{
-					Path:         rootLocation,
-					IsDefBackend: true,
-					Proxy:        ngxProxy,
-					Service:      &apiv1.Service{},
-				})
+				// server already configured
 				continue
 			}
 

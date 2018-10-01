@@ -112,5 +112,11 @@ func TestAnnotations(t *testing.T) {
 		if u.Weight != test.canaryWeight {
 			t.Errorf("%v: expected \"%v\", but \"%v\" was returned", test.title, test.canaryWeight, u.Weight)
 		}
+		if u.Header != test.canaryHeader {
+			t.Errorf("%v: expected \"%v\", but \"%v\" was returned", test.title, test.canaryHeader, u.Header)
+		}
+		if u.Cookie != test.canaryCookie {
+			t.Errorf("%v: expected \"%v\", but \"%v\" was returned", test.title, test.canaryCookie, u.Cookie)
+		}
 	}
 }

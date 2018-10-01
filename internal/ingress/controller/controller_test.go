@@ -32,13 +32,14 @@ import (
 
 func TestMergeVirtualBackends(t *testing.T) {
 	testCases := map[string]struct {
-		ingress               *extensions.Ingress
-		upstreams             map[string]*ingress.Backend
-		servers               map[string]*ingress.Server
-		expNumVirtualBackends int
-		expNumLocations       int
+		ingress                  *extensions.Ingress
+		upstreams                map[string]*ingress.Backend
+		servers                  map[string]*ingress.Server
+		expNumVirtualBackends    int
+		expVirtualBackendContent ingress.VirtualBackend
+		expNumLocations          int
 	}{
-		"one to one host+path match": {
+		"virtual backend has no server and embeds into matching real backend": {
 			&extensions.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "example",
@@ -85,165 +86,15 @@ func TestMergeVirtualBackends(t *testing.T) {
 							Path:    "/",
 							Backend: "example-http-svc-80",
 						},
-						{
-							Path:    "/",
-							Backend: "example-http-svc-canary-80",
-						},
 					},
 				},
 			},
 			1,
-			1,
-		},
-		"canary ingress has more paths than real ingress": {
-			&extensions.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "example",
-				},
-				Spec: extensions.IngressSpec{
-					Rules: []extensions.IngressRule{
-						{
-							Host: "example.com",
-							IngressRuleValue: extensions.IngressRuleValue{
-								HTTP: &extensions.HTTPIngressRuleValue{
-									Paths: []extensions.HTTPIngressPath{
-										{
-											Path: "/",
-											Backend: extensions.IngressBackend{
-												ServiceName: "http-svc-canary",
-												ServicePort: intstr.IntOrString{
-													Type:   intstr.Int,
-													IntVal: 80,
-												},
-											},
-										},
-										{
-											Path: "/extra",
-											Backend: extensions.IngressBackend{
-												ServiceName: "extra-http-svc-canary",
-												ServicePort: intstr.IntOrString{
-													Type:   intstr.Int,
-													IntVal: 80,
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			map[string]*ingress.Backend{
-				"example-http-svc-80": {
-					Name:    "example-http-svc-80",
-					Virtual: false,
-				},
-				"example-http-svc-canary-80": {
-					Name:    "example-http-svc-canary-80",
-					Virtual: true,
-				},
-				"example-extra-http-svc-canary-80": {
-					Name:    "example-extra-http-svc-canary-80",
-					Virtual: true,
-				},
-			},
-			map[string]*ingress.Server{
-				"example.com": {
-					Hostname: "example.com",
-					Locations: []*ingress.Location{
-						{
-							Path:    "/",
-							Backend: "example-http-svc-80",
-						},
-						{
-							Path:    "/",
-							Backend: "example-http-svc-canary-80",
-						},
-						{
-							Path:    "/extra",
-							Backend: "example-extra-http-svc-canary-80",
-						},
-					},
-				},
+			ingress.VirtualBackend{
+				Name:   "example-http-svc-canary-80",
+				Weight: 20,
 			},
 			1,
-			1,
-		},
-		"real ingress has more paths than canary ingress": {
-			&extensions.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "example",
-				},
-				Spec: extensions.IngressSpec{
-					Rules: []extensions.IngressRule{
-						{
-							Host: "example.com",
-							IngressRuleValue: extensions.IngressRuleValue{
-								HTTP: &extensions.HTTPIngressRuleValue{
-									Paths: []extensions.HTTPIngressPath{
-										{
-											Path: "/",
-											Backend: extensions.IngressBackend{
-												ServiceName: "http-svc-canary",
-												ServicePort: intstr.IntOrString{
-													Type:   intstr.Int,
-													IntVal: 80,
-												},
-											},
-										},
-										{
-											Path: "/extra",
-											Backend: extensions.IngressBackend{
-												ServiceName: "extra-http-svc",
-												ServicePort: intstr.IntOrString{
-													Type:   intstr.Int,
-													IntVal: 80,
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			map[string]*ingress.Backend{
-				"example-http-svc-80": {
-					Name:    "example-http-svc-80",
-					Virtual: false,
-				},
-				"example-extra-http-svc-80": {
-					Name:    "example-extra-http-svc-80",
-					Virtual: false,
-				},
-				"example-http-svc-canary-80": {
-					Name:    "example-http-svc-canary-80",
-					Virtual: true,
-				},
-			},
-			map[string]*ingress.Server{
-				"example.com": {
-					Hostname: "example.com",
-					Locations: []*ingress.Location{
-						{
-							Path:    "/",
-							Backend: "example-http-svc-80",
-						},
-						{
-							Path:    "/",
-							Backend: "example-http-svc-canary-80",
-						},
-						{
-							Path:    "/extra",
-							Backend: "example-extra-http-svc-80",
-						},
-					},
-				},
-			},
-			1,
-			2,
 		},
 	}
 
@@ -261,6 +112,11 @@ func TestMergeVirtualBackends(t *testing.T) {
 			numVirtualBackends := len(tc.upstreams["example-http-svc-80"].VirtualBackends)
 			if numVirtualBackends != tc.expNumVirtualBackends {
 				t.Errorf("expected %d virtual backends (got %d)", tc.expNumVirtualBackends, numVirtualBackends)
+			}
+
+			virtualBackendContent := tc.upstreams["example-http-svc-80"].VirtualBackends
+			if !virtualBackendContent[0].Equal(&tc.expVirtualBackendContent) {
+				t.Errorf("expected virtual backends to be equal")
 			}
 
 			numLocations := len(tc.servers["example.com"].Locations)

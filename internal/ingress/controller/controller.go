@@ -161,34 +161,6 @@ func (n *NGINXController) syncIngress(interface{}) error {
 		BackendConfigChecksum: n.store.GetBackendConfiguration().Checksum,
 	}
 
-	glog.Infof("CURRENT CONFIGBACKEND:")
-	for _, conf := range n.runningConfig.Backends {
-		glog.Infof("\t BACKEND_NAME: %v", conf.Name)
-	}
-
-	glog.Infof("CURRENT SERVERS:")
-	for _, s := range n.runningConfig.Servers {
-		glog.Infof("\t HOST: %v", s.Hostname)
-		for _, l := range s.Locations {
-			glog.Infof("\t \t %v", l.Backend)
-		}
-	}
-
-	glog.Info("\n")
-
-	glog.Infof("NEW CONFIG BACKEND:")
-	for _, conf := range upstreams {
-		glog.Infof("\t BACKEND_NAME: %v", conf.Name)
-	}
-
-	glog.Infof("SERVERS:")
-	for _, s := range servers {
-		glog.Infof("\t HOST: %v", s.Hostname)
-		for _, l := range s.Locations {
-			glog.Infof("\t \t %v", l.Backend)
-		}
-	}
-
 	if n.runningConfig.Equal(pcfg) {
 		glog.V(3).Infof("No configuration change detected, skipping backend reload.")
 		return nil
@@ -580,7 +552,7 @@ func (n *NGINXController) getBackendServers(ingresses []*extensions.Ingress) ([]
 		}
 
 		if anns.Canary.Enabled {
-			glog.V(3).Info("Canary ingress %v detected. Finding eligible backends to merge into.", ing.Name)
+			glog.Infof("Canary ingress %v detected. Finding eligible backends to merge into.", ing.Name)
 			mergeVirtualBackends(ing, anns, upstreams, servers)
 		}
 	}
@@ -658,53 +630,6 @@ func (n *NGINXController) getBackendServers(ingresses []*extensions.Ingress) ([]
 	})
 
 	return aUpstreams, aServers
-}
-
-func mergeVirtualBackends(ing *extensions.Ingress, anns *annotations.Ingress, upstreams map[string]*ingress.Backend,
-	servers map[string]*ingress.Server) {
-
-	for _, rule := range ing.Spec.Rules {
-		for _, path := range rule.HTTP.Paths {
-			upsName := fmt.Sprintf("%v-%v-%v",
-				ing.Namespace,
-				path.Backend.ServiceName,
-				path.Backend.ServicePort.String())
-
-			ups := upstreams[upsName]
-			// check if ok first?
-
-			if ups.Virtual {
-				// find matching paths
-				for _, server := range servers {
-					merged := false
-
-					for _, location := range server.Locations {
-						if location.Backend == defUpstreamName {
-							continue
-						}
-
-						if location.Path == path.Path && !upstreams[location.Backend].Virtual {
-							virtualBackend := ingress.VirtualBackend{
-								Name:   ups.Name,
-								Weight: anns.Canary.Weight,
-								Header: anns.Canary.Header,
-								Cookie: anns.Canary.Cookie,
-							}
-
-							upstreams[location.Backend].VirtualBackends =
-								append(upstreams[location.Backend].VirtualBackends, virtualBackend)
-
-							merged = true
-						}
-					}
-
-					if !merged {
-						delete(upstreams, ups.Name)
-					}
-				}
-			}
-		}
-	}
 }
 
 // createUpstreams creates the NGINX upstreams (Endpoints) for each Service
@@ -1201,6 +1126,57 @@ func (n *NGINXController) createServers(data []*extensions.Ingress,
 	}
 
 	return servers
+}
+
+// match and merge virtual backends into their respective real backends
+func mergeVirtualBackends(ing *extensions.Ingress, anns *annotations.Ingress, upstreams map[string]*ingress.Backend,
+	servers map[string]*ingress.Server) {
+
+	for _, rule := range ing.Spec.Rules {
+		for _, path := range rule.HTTP.Paths {
+			upsName := fmt.Sprintf("%v-%v-%v",
+				ing.Namespace,
+				path.Backend.ServiceName,
+				path.Backend.ServicePort.String())
+
+			ups := upstreams[upsName]
+
+			if ups.Virtual {
+				merged := false
+
+				// find matching paths
+				for _, server := range servers {
+					for _, location := range server.Locations {
+						if location.Backend == defUpstreamName {
+							continue
+						}
+
+						if location.Path == path.Path && !upstreams[location.Backend].Virtual {
+							glog.V(3).Infof("matching real backend %v found for virtual backend %v",
+								upstreams[location.Backend].Name, ups.Name)
+
+							virtualBackend := ingress.VirtualBackend{
+								Name:   ups.Name,
+								Weight: anns.Canary.Weight,
+								Header: anns.Canary.Header,
+								Cookie: anns.Canary.Cookie,
+							}
+
+							upstreams[location.Backend].VirtualBackends =
+								append(upstreams[location.Backend].VirtualBackends, virtualBackend)
+
+							merged = true
+						}
+					}
+				}
+
+				if !merged {
+					glog.Warningf("unable to find real backend for virtual backend %v. Deleting.", ups.Name)
+					delete(upstreams, ups.Name)
+				}
+			}
+		}
+	}
 }
 
 // extractTLSSecretName returns the name of the Secret containing a SSL

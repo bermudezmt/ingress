@@ -16,8 +16,6 @@ limitations under the License.
 
 package ingress
 
-import "github.com/golang/glog"
-
 // Equal tests for equality between two Configuration types
 func (c1 *Configuration) Equal(c2 *Configuration) bool {
 	if c1 == c2 {
@@ -27,7 +25,6 @@ func (c1 *Configuration) Equal(c2 *Configuration) bool {
 		return false
 	}
 
-	glog.Infof("length of backends: %v == %v", len(c1.Backends), len(c2.Backends))
 	if len(c1.Backends) != len(c2.Backends) {
 		return false
 	}
@@ -125,6 +122,9 @@ func (b1 *Backend) Equal(b2 *Backend) bool {
 	if b1.Name != b2.Name {
 		return false
 	}
+	if b1.Virtual != b2.Virtual {
+		return false
+	}
 
 	if b1.Service != b2.Service {
 		if b1.Service == nil || b2.Service == nil {
@@ -168,6 +168,19 @@ func (b1 *Backend) Equal(b2 *Backend) bool {
 		found := false
 		for _, udp2 := range b2.Endpoints {
 			if (&udp1).Equal(&udp2) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	for _, vb1 := range b1.VirtualBackends {
+		found := false
+		for _, vb2 := range b2.VirtualBackends {
+			if (&vb1).Equal(&vb2) {
 				found = true
 				break
 			}
@@ -247,6 +260,28 @@ func (e1 *Endpoint) Equal(e2 *Endpoint) bool {
 		if e1.Target.ResourceVersion != e2.Target.ResourceVersion {
 			return false
 		}
+	}
+
+	return true
+}
+
+// Equal checks for equality between two VirtualBackends
+func (vb1 *VirtualBackend) Equal(vb2 *VirtualBackend) bool {
+	if vb1 == vb2 {
+		return true
+	}
+
+	if vb1.Name != vb2.Name {
+		return false
+	}
+	if vb1.Weight != vb2.Weight {
+		return false
+	}
+	if vb1.Header != vb2.Header {
+		return false
+	}
+	if vb1.Cookie != vb2.Header {
+		return false
 	}
 
 	return true

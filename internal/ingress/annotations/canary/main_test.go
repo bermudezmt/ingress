@@ -100,6 +100,10 @@ func TestAnnotations(t *testing.T) {
 			}
 
 			continue
+		} else {
+			if err != nil {
+				t.Errorf("%v: expected nil but returned error %v", test.title, err)
+			}
 		}
 
 		u, ok := i.(*Config)

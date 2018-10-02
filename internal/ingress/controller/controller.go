@@ -681,11 +681,7 @@ func (n *NGINXController) createUpstreams(data []*extensions.Ingress, du *ingres
 			}
 
 			// marks the upstream as virtual for association with real upstream
-			if anns.Canary.Enabled {
-				upstreams[defBackend].Virtual = true
-			} else {
-				upstreams[defBackend].Virtual = false
-			}
+			upstreams[defBackend].Virtual = anns.Canary.Enabled
 
 			if len(upstreams[defBackend].Endpoints) == 0 {
 				endps, err := n.serviceEndpoints(svcKey, ing.Spec.Backend.ServicePort.String(), &anns.HealthCheck)
@@ -745,11 +741,7 @@ func (n *NGINXController) createUpstreams(data []*extensions.Ingress, du *ingres
 				}
 
 				// marks the upstream as virtual for association with real upstream
-				if anns.Canary.Enabled {
-					upstreams[name].Virtual = true
-				} else {
-					upstreams[name].Virtual = false
-				}
+				upstreams[name].Virtual = anns.Canary.Enabled
 
 				if len(upstreams[name].Endpoints) == 0 {
 					endp, err := n.serviceEndpoints(svcKey, path.Backend.ServicePort.String(), &anns.HealthCheck)

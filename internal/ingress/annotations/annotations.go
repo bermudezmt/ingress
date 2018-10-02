@@ -153,8 +153,6 @@ func (e Extractor) Extract(ing *extensions.Ingress) *Ingress {
 		ObjectMeta: ing.ObjectMeta,
 	}
 
-	glog.Warningf("ANNOTATIONS: %v", ing.ObjectMeta.Annotations)
-
 	data := make(map[string]interface{})
 	for name, annotationParser := range e.annotations {
 		val, err := annotationParser.Parse(ing)

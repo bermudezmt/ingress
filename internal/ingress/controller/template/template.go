@@ -495,7 +495,7 @@ func buildProxyPass(host string, b interface{}, loc interface{}, dynamicConfigur
 		return defProxyPass
 	}
 
-	if !strings.HasSuffix(path, slash) {
+	if !strings.HasSuffix(path, slash) && !location.Rewrite.UseRegex {
 		path = fmt.Sprintf("%s/", path)
 	}
 
@@ -520,6 +520,13 @@ subs_filter '%v' '$1<base href="%v://$http_host%v">' ro;
 
 		if location.XForwardedPrefix {
 			xForwardedPrefix = fmt.Sprintf("proxy_set_header X-Forwarded-Prefix \"%s\";\n", path)
+		}
+
+		if location.Rewrite.UseRegex {
+			return fmt.Sprintf(`
+rewrite (?i)%s %s break;
+%v%v %s%s;
+%v`, path, location.Rewrite.Target, xForwardedPrefix, proxyPass, proto, upstreamName, abu)
 		}
 
 		if location.Rewrite.Target == slash {

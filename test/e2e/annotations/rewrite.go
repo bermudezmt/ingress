@@ -255,4 +255,35 @@ var _ = framework.IngressNginxDescribe("Annotations - Rewrite", func() {
 		Expect(resp.StatusCode).Should(Equal(http.StatusOK))
 		Expect(body).Should(ContainSubstring(expectBodyRequestURI))
 	})
+
+	It("should allow for custom rewrite when regex is enabled", func() {
+		host := "rewrite.bar.com"
+
+		By(`creating an ingress definition with the use-regex annotation`)
+		annotations := map[string]string{
+			"nginx.ingress.kubernetes.io/use-regex":      "true",
+			"nginx.ingress.kubernetes.io/rewrite-target": "/new/backend/$1",
+		}
+		ing := framework.NewSingleIngress("regex", "/foo/bar/(.+)", host, f.IngressController.Namespace, "http-svc", 80, &annotations)
+		_, err := f.EnsureIngress(ing)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(ing).NotTo(BeNil())
+
+		err = f.WaitForNginxServer(host,
+			func(server string) bool {
+				return strings.Contains(server, `location ~* ^/foo/bar/(.+)\/?(?<baseuri>.*) {`)
+			})
+		Expect(err).NotTo(HaveOccurred())
+
+		By("check that '/foo/bar/bar' redirects to cusotm rewrite")
+		resp, body, errs := gorequest.New().
+			Get(f.IngressController.HTTPURL+"/foo/bar/bar").
+			Set("Host", host).
+			End()
+		expectBodyRequestURI := fmt.Sprintf("request_uri=http://%v:8080/new/backend/bar", host)
+		Expect(len(errs)).Should(Equal(0))
+		Expect(resp.StatusCode).Should(Equal(http.StatusOK))
+		Expect(body).Should(ContainSubstring(expectBodyRequestURI))
+	})
+
 })

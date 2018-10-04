@@ -332,21 +332,6 @@ proxy_pass http://sticky-upstream-name;
 			false,
 			false,
 			true},
-		"use custom regex proxy pass": {
-			"/something/(.+)",
-			"/foo/bar/$1",
-			`~* "^/something/(.+)\/?(?<baseuri>.*)"`,
-			`
-rewrite "(?i)/something/(.+)" /foo/bar/$1 break;
-proxy_pass http://upstream-name;
-`,
-			false,
-			"",
-			false,
-			false,
-			false,
-			false,
-			true},
 	}
 )
 
@@ -430,7 +415,7 @@ func TestBuildProxyPass(t *testing.T) {
 	for k, tc := range tmplFuncTestcases {
 		loc := &ingress.Location{
 			Path:             tc.Path,
-			Rewrite:          rewrite.Config{Target: tc.Target, AddBaseURL: tc.AddBaseURL, BaseURLScheme: tc.BaseURLScheme, UseRegex: tc.enforceRegex},
+			Rewrite:          rewrite.Config{Target: tc.Target, AddBaseURL: tc.AddBaseURL, BaseURLScheme: tc.BaseURLScheme},
 			Backend:          defaultBackend,
 			XForwardedPrefix: tc.XForwardedPrefix,
 		}

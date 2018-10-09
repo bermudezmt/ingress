@@ -773,6 +773,8 @@ func configureDynamically(pcfg *ingress.Configuration, port int, isDynamicCertif
 			UpstreamHashBy:  backend.UpstreamHashBy,
 			LoadBalancing:   backend.LoadBalancing,
 			Service:         service,
+			Virtual:         backend.Virtual,
+			VirtualBackends: backend.VirtualBackends,
 		}
 
 		var endpoints []ingress.Endpoint

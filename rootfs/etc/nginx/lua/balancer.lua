@@ -24,6 +24,8 @@ local IMPLEMENTATIONS = {
 local _M = {}
 local balancers = {}
 
+
+
 local function get_implementation(backend)
   local name = backend["load-balance"] or DEFAULT_LB_ALG
 
@@ -124,7 +126,38 @@ end
 
 local function get_balancer()
   local backend_name = ngx.var.proxy_upstream_name
-  return balancers[backend_name]
+
+  local backends_data = configuration.get_backends_data()
+  if not backends_data then
+    ngx.log(ngx.ERR, "could not retrieve backend data")
+    return
+  end
+
+  local ok, backends = pcall(json.decode, backends_data)
+  if not ok then
+    ngx.log(ngx.ERR, "could not parse backends data: " .. tostring(backends))
+    return
+  end
+
+  for _, backend in ipairs(backends) do
+    if backend.name == backend_name then
+      if not backend.virtualBackends then
+        return balancers[backend.name]
+      end
+
+      -- TODO: support traffic shaping for n > 1 virtual backends
+      local virtual_backend = backend.virtualBackends[1]
+
+      -- TODO: this function has a left-hand bias which produces
+      -- slightly smaller real weighting than ancitipated
+      if math.random(0,100) <= virtual_backend.weight then
+        ngx.log(ngx.INFO, "routing request to backend " .. virtual_backend.backend)
+        return balancers[virtual_backend.backend]
+      end
+
+      return balancers[backend.name]
+    end
+  end
 end
 
 function _M.init_worker()

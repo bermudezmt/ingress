@@ -102,7 +102,7 @@ type Backend struct {
 	// Additional virtual backends associated with the same server and endpoints, but have a different service
 	// which will receive a weighted amount of traffic redirected to them.
 	// +optional
-	VirtualBackends []VirtualBackend `json:"virtual-backends,omitempty"`
+	VirtualBackends []VirtualBackend `json:"virtualBackends,omitempty"`
 }
 
 // VirtualBackend describes a normal Backend that is not backed by a Server. Instead, The virtual backend
